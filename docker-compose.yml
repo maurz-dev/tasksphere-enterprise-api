@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tasksphere_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - APP_NAME=TaskSphere Enterprise API
+      - DATABASE_URL=postgresql+asyncpg://tasksphere_user:super_secret_db_pass@db:5432/tasksphere_db
+      - SECRET_KEY=enterprise-super-secret-production-key-at-least-32-chars-long
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - FIRST_ADMIN_EMAIL=admin@tasksphere.io
+      - FIRST_ADMIN_PASSWORD=AdminProductionSecret2026!
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tasksphere_network
+
+  db:
+    image: postgres:16-alpine
+    container_name: tasksphere_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=tasksphere_user
+      - POSTGRES_PASSWORD=super_secret_db_pass
+      - POSTGRES_DB=tasksphere_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasksphere_user -d tasksphere_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tasksphere_network
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  tasksphere_network:
+    driver: bridge
