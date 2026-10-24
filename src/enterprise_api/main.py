@@ -66,8 +66,7 @@ def create_application() -> FastAPI:
         version=settings.APP_VERSION,
         description=(
             "Enterprise Task & Project Orchestration REST API built with Clean Architecture, "
-            "FastAPI, SQLAlchemy 2.0, and Pydantic V2.\n\n"
-            "Inspired by standards from **tiangolo/fastapi**, **encode/httpx**, and **pydantic/pydantic**."
+            "FastAPI, SQLAlchemy 2.0, and Pydantic V2."
         ),
         docs_url="/docs",
         redoc_url="/redoc",

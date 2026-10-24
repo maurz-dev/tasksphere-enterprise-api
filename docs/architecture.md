@@ -1,9 +1,10 @@
 # Arquitectura del Sistema - TaskSphere Enterprise API
 
-## 1. Visión General y Principios de Diseño
-Este proyecto implementa los principios de **Clean Architecture** (Arquitectura Limpia) y **Domain-Driven Design (DDD)** adaptados al ecosistema Python moderno.
+## 1. Vision General y Principios de Diseno
 
-```
+Este proyecto implementa los principios de Arquitectura Limpia (Clean Architecture) y Diseno Guiado por el Dominio (DDD) aplicados sobre el ecosistema Python asincrono moderno.
+
+```text
        +-------------------------------------------------------+
        |                  Clientes Externos                   |
        |           (Web UI, Mobile, curl, Postman)             |
@@ -11,77 +12,67 @@ Este proyecto implementa los principios de **Clean Architecture** (Arquitectura 
                                    | HTTP / JSON / OAuth2
                                    v
 +---------------------------------------------------------------------+
-| Capa de Presentación (src/enterprise_api/api/)                       |
+| Capa de Presentacion (src/enterprise_api/api/)                       |
 |  - Routers de endpoints v1 (/auth, /users, /projects, /tasks)      |
-|  - Inyección de dependencias (deps.py)                              |
-|  - Middleware de correlación (X-Request-ID, X-Process-Time)         |
+|  - Inyeccion de dependencias (deps.py)                              |
+|  - Middleware de correlacion (X-Request-ID, X-Process-Time)         |
 +----------------------------------+----------------------------------+
                                    |
                                    v
 +---------------------------------------------------------------------+
 | Capa de Servicios de Dominio (src/enterprise_api/services/)          |
 |  - AuthService, UserService, ProjectService, TaskService            |
-|  - Máquina de estados finitos (FSM) de tareas                        |
-|  - Generación de slug seguro y validación de reglas de negocio       |
-|  - Registro automático de auditoría (AuditLog)                      |
+|  - Maquina de estados finitos (FSM) de tareas                        |
+|  - Generacion deterministica de slug y validacion de reglas          |
+|  - Registro automatico de auditoria (AuditLog)                      |
 +----------------------------------+----------------------------------+
                                    |
                                    v
 +---------------------------------------------------------------------+
 | Capa de Repositorios (src/enterprise_api/repositories/)              |
-|  - BaseRepository[Model] (CRUD genérico asíncrono)                  |
+|  - BaseRepository[Model] (CRUD generico asincrono)                  |
 |  - UserRepository, ProjectRepository, TaskRepository, AuditRepo     |
-|  - Consultas especializadas con eager-loading (selectinload)        |
+|  - Consultas especializadas con carga ansiosa (selectinload)        |
 +----------------------------------+----------------------------------+
                                    |
                                    v
 +---------------------------------------------------------------------+
 | Capa de Infraestructura y Datos (src/enterprise_api/models & core/) |
 |  - SQLAlchemy 2.0 Async Engine (SQLite / PostgreSQL)                |
-|  - Migración y seed automático de tablas (lifespan)                 |
+|  - Migracion y seed automatico de tablas (lifespan)                 |
 |  - Modelos ORM: User, Project, Task, AuditLog                       |
 +---------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Las 3 Inspiraciones de Proyectos de GitHub
+## 2. Maquina de Estados del Flujo de Trabajo (Tasks)
 
-### 🌟 1. `tiangolo/full-stack-fastapi-template` y `tiangolo/fastapi`
-- **Estructura Modular de Endpoints y Routers**: Separación limpia entre rutas (`/api/v1`), inyección de dependencias (`Depends`), y ciclo de vida de la aplicación (`lifespan` asíncrono).
-- **Seguridad y RBAC**: Autenticación Bearer JWT estándar con soporte nativo para Swagger UI (`OAuth2PasswordBearer` + `OAuth2PasswordRequestForm`).
-- **Control de Roles**: Guards declarativos (`require_admin`, `require_manager_or_admin`).
-- **Seed Inicial**: Inicialización automática y segura del superusuario administrador durante el arranque.
-
-### ⚡ 2. `encode/httpx` y `encode/starlette`
-- **Manejo de Errores RFC 7807/9457**: Jerarquía de excepciones (`AppException`, `NotFoundError`, `ConflictError`, `ForbiddenError`, `ValidationError`) con respuestas JSON estructuradas con código de error, mensaje y detalle legible por máquinas.
-- **Trazabilidad y Rendimiento**: Middleware que inyecta encabezados `X-Request-ID` para correlación de logs y `X-Process-Time` para monitorización de latencia en milisegundos.
-- **Fixtures Asíncronas**: Pruebas con `httpx.AsyncClient` y `ASGITransport` para pruebas End-to-End sin abrir sockets de red externos.
-
-### 🛡️ 3. `pydantic/pydantic` y `astral-sh/ruff`
-- **Validación Tipada Estricta**: Modelos Pydantic V2 con `ConfigDict(from_attributes=True)` y esquemas genéricos paginados `PaginatedResponse[T]`.
-- **Configuración Basada en Entorno**: `pydantic-settings` con lectura de `.env`, validación de orígenes CORS y tipado fuertemente acotado (`Literal`).
-- **Tooling de Primera Clase**: Configuración centralizada en `pyproject.toml` (PEP 621), linter ultra-rápido Ruff, y suite de pruebas con Pytest y reporte de cobertura de código.
-
----
-
-## 3. Máquina de Estados del Flujo de Trabajo (Tasks)
-
-Para evitar estados incoherentes en proyectos empresariales, las tareas siguen una máquina de estados finitos (FSM) estricta:
+Para evitar estados inconsistentes en la orquestacion de tareas, las entidades siguen una maquina de estados finitos (FSM) estricta:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> TODO: Creación
-    TODO --> IN_PROGRESS: Inicio de trabajo
+    [*] --> TODO: Creacion
+    TODO --> IN_PROGRESS: Inicio de ejecucion
     TODO --> ARCHIVED: Descarte
-    IN_PROGRESS --> IN_REVIEW: Petición de revisión
-    IN_PROGRESS --> TODO: Pausa/Reasignación
-    IN_PROGRESS --> ARCHIVED: Cancelación
-    IN_REVIEW --> COMPLETED: Aprobación
-    IN_REVIEW --> IN_PROGRESS: Cambios solicitados
+    IN_PROGRESS --> IN_REVIEW: Solicitud de revision
+    IN_PROGRESS --> TODO: Pausa o reasignacion
+    IN_PROGRESS --> ARCHIVED: Cancelacion
+    IN_REVIEW --> COMPLETED: Aprobacion final
+    IN_REVIEW --> IN_PROGRESS: Correcciones requeridas
     IN_REVIEW --> ARCHIVED: Descarte
-    COMPLETED --> ARCHIVED: Archivado final
-    COMPLETED --> IN_PROGRESS: Reapertura de bug
-    ARCHIVED --> TODO: Restauración
+    COMPLETED --> ARCHIVED: Archivado formal
+    COMPLETED --> IN_PROGRESS: Reapertura por incidencia
+    ARCHIVED --> TODO: Restauracion
 ```
-Cualquier transición ilegal (por ejemplo, saltar de `TODO` directamente a `COMPLETED`) es rechazada con un código `422 Unprocessable Content` y un mensaje descriptivo de las transiciones permitidas.
+
+Cualquier transicion no contemplada en la matriz permitida es rechazada de manera inmediata con un codigo de estado `422 Unprocessable Content` y un detalle legible bajo la especificacion RFC 7807/9457 indicando los estados validos para el contexto actual.
+
+---
+
+## 3. Trazabilidad y Observabilidad
+
+El middleware `CorrelationAndTimingMiddleware` garantiza que:
+1. Toda peticion HTTP reciba o preserve un identificador `X-Request-ID` unico (UUIDv4).
+2. Se registre el tiempo de ejecucion en el encabezado de respuesta `X-Process-Time`.
+3. Los errores no controlados se registren en el log estructurado junto al `request_id` correspondiente para facilitar el rastreo en herramientas APM.
